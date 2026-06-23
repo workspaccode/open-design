@@ -76,6 +76,16 @@ export const MarkdownRenderer: ArtifactRenderer = {
   },
 };
 
+export const FlutterRenderer: ArtifactRenderer = {
+  id: 'flutter',
+  supportsStreaming: false,
+  canRender: ({ file }) => {
+    const manifest = resolveManifest(file);
+    if (manifest?.renderer === 'flutter') return true;
+    return file.kind === 'code' && /\.dart$/i.test(file.name);
+  },
+};
+
 export const SvgRenderer: ArtifactRenderer = {
   id: 'svg',
   supportsStreaming: false,
@@ -101,6 +111,7 @@ export class RendererRegistry {
 
 export const artifactRendererRegistry = new RendererRegistry([
   ReactComponentRenderer,
+  FlutterRenderer,
   DeckHtmlRenderer,
   HtmlRenderer,
   MarkdownRenderer,

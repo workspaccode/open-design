@@ -18,7 +18,8 @@ export type ArtifactRendererId =
   | 'diagram'
   | 'code'
   | 'mini-app'
-  | 'design-system';
+  | 'design-system'
+  | 'flutter';
 
 export type ArtifactExportKind =
   | 'html'

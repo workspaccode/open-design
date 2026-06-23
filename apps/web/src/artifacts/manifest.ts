@@ -28,6 +28,7 @@ const ALLOWED_RENDERERS: ReadonlySet<ArtifactRendererId> = new Set([
   'code',
   'mini-app',
   'design-system',
+  'flutter',
 ]);
 const ALLOWED_EXPORTS: ReadonlySet<ArtifactExportKind> = new Set([
   'html',
