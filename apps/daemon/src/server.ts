@@ -534,6 +534,7 @@ import { registerRunRoutes } from './routes/runs.js';
 import { registerTerminalRoutes } from './routes/terminal.js';
 import { createTerminalService } from './terminals.js';
 import { registerSocialShareRoutes } from './routes/social-share.js';
+import { registerFlutterRoutes } from './routes/flutter.js';
 import { registerOpenDesignPublicMetadataRoutes } from './routes/open-design-public-metadata.js';
 import { registerMemoryRoutes } from './routes/memory.js';
 import { registerTelemetryRoutes } from './routes/telemetry.js';
@@ -3971,6 +3972,7 @@ export async function startServer({
     projectFiles: projectFileDeps,
   });
   registerSocialShareRoutes(app, { http: httpDeps });
+  registerFlutterRoutes(app, { http: httpDeps, paths: pathDeps });
   registerProjectRoutes(app, {
     db,
     design,

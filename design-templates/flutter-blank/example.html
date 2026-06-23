@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flutter Blank — Gallery Preview</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: #0f1117;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #e8eaf0;
+    padding: 24px;
+  }
+
+  .scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  .header {
+    text-align: center;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(84,215,160,0.12);
+    border: 1px solid rgba(84,215,160,0.25);
+    color: #54d7a0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+  }
+  .title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: #6b7280;
+  }
+
+  /* ── Device row ─────────────────────────────────────────────── */
+  .devices {
+    display: flex;
+    gap: 32px;
+    align-items: flex-end;
+  }
+
+  /* ── Phone frame ────────────────────────────────────────────── */
+  .phone {
+    width: 200px;
+    height: 420px;
+    background: #1c1f2d;
+    border-radius: 36px;
+    box-shadow:
+      0 0 0 8px #252836,
+      0 0 0 10px rgba(255,255,255,0.05),
+      0 24px 48px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .phone.small {
+    width: 160px;
+    height: 336px;
+    border-radius: 30px;
+    opacity: 0.7;
+  }
+
+  /* Notch */
+  .notch {
+    height: 22px;
+    background: #1c1f2d;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    padding-bottom: 2px;
+    flex-shrink: 0;
+  }
+  .notch-pill {
+    width: 64px;
+    height: 14px;
+    background: #0b0e16;
+    border-radius: 0 0 10px 10px;
+  }
+
+  /* Screen */
+  .screen {
+    flex: 1;
+    background: #f5f5f7;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 0 0 28px 28px;
+  }
+  .screen.dark { background: #1a1a2e; }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 12px;
+    font-size: 9px;
+    font-weight: 600;
+    color: #333;
+  }
+  .screen.dark .status-bar { color: #ccc; }
+  .status-right { display: flex; gap: 4px; align-items: center; }
+
+  /* App bar */
+  .app-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: inherit;
+    border-bottom: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .screen.dark .app-bar { border-color: rgba(255,255,255,0.06); }
+  .app-bar-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 700;
+    color: #111;
+  }
+  .screen.dark .app-bar-title { color: #fff; }
+  .app-bar-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Todo list items */
+  .list-body {
+    flex: 1;
+    overflow: hidden;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .todo-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .screen.dark .todo-item {
+    background: rgba(255,255,255,0.06);
+    box-shadow: none;
+  }
+  .check {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #6750a4;
+    flex-shrink: 0;
+  }
+  .check.done {
+    background: #6750a4;
+    border-color: #6750a4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .check.done::after {
+    content: '✓';
+    color: #fff;
+    font-size: 8px;
+    font-weight: 700;
+  }
+  .todo-text { font-size: 10px; color: #222; flex: 1; }
+  .screen.dark .todo-text { color: #ddd; }
+  .todo-text.done { text-decoration: line-through; color: #999; }
+
+  /* FAB */
+  .fab {
+    position: absolute;
+    bottom: 16px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    background: #6750a4;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 18px;
+    box-shadow: 0 4px 12px rgba(103,80,164,0.4);
+    font-weight: 300;
+    line-height: 1;
+  }
+
+  /* ── Stack info ─────────────────────────────────────────────── */
+  .stack-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: #9ca3af;
+  }
+  .chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+<div class="scene">
+  <!-- Header -->
+  <div class="header">
+    <div class="badge">📱 Design Template</div>
+    <div class="title">Flutter Blank</div>
+    <div class="subtitle">GoRouter · Riverpod · Material 3 · flutter build web</div>
+  </div>
+
+  <!-- Two phones side by side -->
+  <div class="devices">
+
+    <!-- Light phone -->
+    <div class="phone small">
+      <div class="notch"><div class="notch-pill"></div></div>
+      <div class="screen">
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="status-right">
+            <span>●●●</span>
+            <span>WiFi</span>
+            <span>🔋</span>
+          </div>
+        </div>
+        <div class="app-bar">
+          <div class="app-bar-title">Onboarding</div>
+        </div>
+        <div class="list-body" style="align-items:center;justify-content:center;gap:8px;">
+          <div style="font-size:32px;">🚀</div>
+          <div style="font-size:11px;font-weight:700;color:#111;">Get Started</div>
+          <div style="font-size:9px;color:#666;text-align:center;padding:0 16px;">Your premium Flutter app is ready to customize.</div>
+          <div style="margin-top:8px;background:#6750a4;color:#fff;font-size:9px;font-weight:600;padding:6px 20px;border-radius:8px;">Continue</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main (light theme, todo app) -->
+    <div class="phone">
+      <div class="notch"><div class="notch-pill"></div></div>
+      <div class="screen">
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="status-right">
+            <span>●●●</span>
+            <span>WiFi</span>
+            <span>🔋</span>
+          </div>
+        </div>
+        <div class="app-bar">
+          <div class="app-bar-title">My Tasks</div>
+          <div class="app-bar-icon">⋮</div>
+        </div>
+        <div class="list-body">
+          <div class="todo-item">
+            <div class="check done"></div>
+            <div class="todo-text done">Design the UI wireframes</div>
+          </div>
+          <div class="todo-item">
+            <div class="check done"></div>
+            <div class="todo-text done">Set up GoRouter routes</div>
+          </div>
+          <div class="todo-item">
+            <div class="check"></div>
+            <div class="todo-text">Write unit tests</div>
+          </div>
+          <div class="todo-item">
+            <div class="check"></div>
+            <div class="todo-text">Add Riverpod providers</div>
+          </div>
+          <div class="todo-item">
+            <div class="check"></div>
+            <div class="todo-text">Deploy to production</div>
+          </div>
+        </div>
+        <div class="fab">+</div>
+      </div>
+    </div>
+
+    <!-- Dark phone -->
+    <div class="phone small">
+      <div class="notch"><div class="notch-pill"></div></div>
+      <div class="screen dark">
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="status-right">
+            <span>●●●</span>
+            <span>WiFi</span>
+            <span>🔋</span>
+          </div>
+        </div>
+        <div class="app-bar">
+          <div class="app-bar-title">Settings</div>
+        </div>
+        <div class="list-body" style="gap:6px;">
+          <div class="todo-item" style="gap:6px;">
+            <span style="font-size:12px;">👤</span>
+            <div class="todo-text">Profile</div>
+            <span style="font-size:10px;color:#666;">›</span>
+          </div>
+          <div class="todo-item" style="gap:6px;">
+            <span style="font-size:12px;">🔔</span>
+            <div class="todo-text">Notifications</div>
+            <span style="font-size:10px;color:#666;">›</span>
+          </div>
+          <div class="todo-item" style="gap:6px;">
+            <span style="font-size:12px;">🌙</span>
+            <div class="todo-text">Dark Mode</div>
+            <span style="font-size:10px;background:#6750a4;color:#fff;padding:2px 5px;border-radius:6px;font-weight:700;">ON</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tech stack chips -->
+  <div class="stack-chips">
+    <div class="chip">
+      <div class="chip-dot" style="background:#54d7a0;"></div>
+      Flutter 3.x
+    </div>
+    <div class="chip">
+      <div class="chip-dot" style="background:#7c83f5;"></div>
+      GoRouter 13
+    </div>
+    <div class="chip">
+      <div class="chip-dot" style="background:#f5a623;"></div>
+      Riverpod 2
+    </div>
+    <div class="chip">
+      <div class="chip-dot" style="background:#3ec8e0;"></div>
+      Material 3
+    </div>
+    <div class="chip">
+      <div class="chip-dot" style="background:#e55;"></div>
+      flutter build web
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

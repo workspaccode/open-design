@@ -4,6 +4,7 @@ import type { RegisterAutomationRoutesDeps } from './routes/automation.js';
 import type { RegisterChatRoutesDeps } from './routes/chat.js';
 import type { RegisterDeployRoutesDeps, RegisterDeploymentCheckRoutesDeps } from './routes/deploy.js';
 import type { RegisterFinalizeRoutesDeps, RegisterImportRoutesDeps, RegisterProjectExportRoutesDeps } from './import-export-routes.js';
+import type { RegisterFlutterRoutesDeps } from './routes/flutter.js';
 import type { RegisterGenuiRoutesDeps } from './routes/genui.js';
 import type { RegisterHandoffRoutesDeps } from './routes/handoff.js';
 import type { RegisterHostToolsRoutesDeps } from './routes/host-tools.js';
@@ -27,6 +28,7 @@ type AllRegisteredRouteDeps =
   & RegisterDeployRoutesDeps
   & RegisterDeploymentCheckRoutesDeps
   & RegisterFinalizeRoutesDeps
+  & RegisterFlutterRoutesDeps
   & RegisterGenuiRoutesDeps
   & RegisterHandoffRoutesDeps
   & RegisterHostToolsRoutesDeps

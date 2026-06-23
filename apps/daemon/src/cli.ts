@@ -304,6 +304,7 @@ const SUBCOMMAND_MAP = {
   skills: runSkills,
   'design-systems': runDesignSystems,
   craft: runCraft,
+  flutter: runFlutter,
   diagnostics: runDiagnostics,
   status: runStatus,
   version: runVersion,
@@ -448,6 +449,190 @@ What the daemon does:
   * proxies messages (text + images) to the selected agent via child-process spawn
   * exposes /api/projects/:id/media/generate — the unified image/video/audio
      dispatcher that the agent calls via \`od media generate\`.`);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: od flutter …
+// ---------------------------------------------------------------------------
+
+function printFlutterHelp() {
+  console.log(`Usage:
+  od flutter build --project-path <path> --name <id> [--daemon-url <url>]
+      Build the Flutter project at <path> for web and stream build logs.
+      Prints a preview URL when the build succeeds.
+
+  od flutter status --name <id> [--daemon-url <url>]
+      Check whether a Flutter build is running, ready, or absent.
+
+  od flutter delete --name <id> [--daemon-url <url>]
+      Kill any active build for <id> and remove build output.
+
+  od flutter open --name <id> [--daemon-url <url>]
+      Print the preview URL for a ready build.
+
+Options:
+  --name <id>            Project identifier (matches /^[a-zA-Z0-9_-]{1,64}$/).
+  --project-path <path>  Absolute path to the Flutter project (build only).
+  --daemon-url <url>     Daemon HTTP base (default: http://127.0.0.1:7456).
+  --json                 Emit JSON for status/delete/open.
+`);
+}
+
+async function runFlutter(args) {
+  if (
+    args.length === 0 ||
+    args[0] === 'help' ||
+    args.includes('--help') ||
+    args.includes('-h')
+  ) {
+    printFlutterHelp();
+    process.exit(args.length === 0 ? 2 : 0);
+  }
+
+  const sub = args[0];
+  const rest = args.slice(1);
+
+  let flags;
+  try {
+    flags = parseFlags(rest, {
+      string: new Set(['name', 'project-path', 'daemon-url']),
+      boolean: new Set(['json']),
+    });
+  } catch (err) {
+    console.error(err.message);
+    printFlutterHelp();
+    process.exit(2);
+  }
+
+  const base = await cliDaemonBaseUrl(flags);
+  const writeJson = (data) => process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+
+  if (sub === 'build') {
+    const projectPath = flags['project-path'];
+    const name = flags.name;
+    if (!projectPath || !name) {
+      console.error('--project-path and --name are required');
+      printFlutterHelp();
+      process.exit(2);
+    }
+    let resp;
+    try {
+      resp = await fetch(`${base}/api/flutter/build`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ projectPath, projectName: name }),
+      });
+    } catch (err) {
+      surfaceFetchError(err, base);
+      process.exit(3);
+    }
+    if (!resp.ok) return structuredHttpFailure(resp);
+    // Stream SSE lines to stdout
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let done = false;
+    while (!done) {
+      const { value, done: streamDone } = await reader.read();
+      done = streamDone;
+      if (value) buf += decoder.decode(value, { stream: !streamDone });
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let event;
+        try { event = JSON.parse(line.slice(6)); } catch { continue; }
+        if (event.type === 'log') {
+          process.stdout.write(event.log + '\n');
+        } else if (event.type === 'done') {
+          if (flags.json) {
+            writeJson({ ok: true, previewUrl: `${base}${event.previewUrl}` });
+          } else {
+            console.log(`\n[flutter] build complete`);
+            console.log(`Preview: ${base}${event.previewUrl}`);
+          }
+        } else if (event.type === 'error') {
+          console.error(`\n[flutter] build failed (exit ${event.exitCode}): ${event.message}`);
+          process.exit(1);
+        }
+      }
+    }
+    return;
+  }
+
+  if (sub === 'status') {
+    const name = flags.name;
+    if (!name) {
+      console.error('--name is required');
+      process.exit(2);
+    }
+    let resp;
+    try {
+      resp = await fetch(`${base}/api/flutter/status/${encodeURIComponent(name)}`);
+    } catch (err) {
+      surfaceFetchError(err, base);
+      process.exit(3);
+    }
+    if (!resp.ok) return structuredHttpFailure(resp);
+    const data = await resp.json();
+    if (flags.json) return writeJson(data);
+    console.log(`name\t${data.projectName}`);
+    console.log(`status\t${data.status}`);
+    if (data.previewUrl) console.log(`preview\t${base}${data.previewUrl}`);
+    return;
+  }
+
+  if (sub === 'open') {
+    const name = flags.name;
+    if (!name) {
+      console.error('--name is required');
+      process.exit(2);
+    }
+    let resp;
+    try {
+      resp = await fetch(`${base}/api/flutter/status/${encodeURIComponent(name)}`);
+    } catch (err) {
+      surfaceFetchError(err, base);
+      process.exit(3);
+    }
+    if (!resp.ok) return structuredHttpFailure(resp);
+    const data = await resp.json();
+    if (data.status !== 'ready') {
+      console.error(`[flutter] build status is '${data.status}' — run 'od flutter build' first`);
+      process.exit(1);
+    }
+    const url = `${base}${data.previewUrl}`;
+    if (flags.json) return writeJson({ url });
+    console.log(url);
+    return;
+  }
+
+  if (sub === 'delete') {
+    const name = flags.name;
+    if (!name) {
+      console.error('--name is required');
+      process.exit(2);
+    }
+    let resp;
+    try {
+      resp = await fetch(
+        `${base}/api/flutter/preview/${encodeURIComponent(name)}`,
+        { method: 'DELETE' },
+      );
+    } catch (err) {
+      surfaceFetchError(err, base);
+      process.exit(3);
+    }
+    if (!resp.ok) return structuredHttpFailure(resp);
+    const data = await resp.json();
+    if (flags.json) return writeJson(data);
+    console.log(`[flutter] deleted build output for '${name}'`);
+    return;
+  }
+
+  console.error(`unknown subcommand: od flutter ${sub}`);
+  printFlutterHelp();
+  process.exit(2);
 }
 
 // ---------------------------------------------------------------------------

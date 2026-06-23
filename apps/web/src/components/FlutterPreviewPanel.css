@@ -1,0 +1,254 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   FlutterPreviewPanel — styles
+   ────────────────────────────────────────────────────────────────────────── */
+
+.flutter-preview-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--od-bg-subtle, #0f1117);
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: var(--od-font-sans, system-ui, sans-serif);
+  color: var(--od-text-primary, #e8eaf0);
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+
+.flutter-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--od-bg-surface, #161b26);
+  border-bottom: 1px solid var(--od-border, rgba(255,255,255,0.08));
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.flutter-preview-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--od-text-primary, #e8eaf0);
+}
+
+.flutter-preview-icon {
+  font-size: 16px;
+}
+
+.flutter-preview-name {
+  font-family: var(--od-font-mono, 'SF Mono', 'Fira Mono', monospace);
+  font-size: 11px;
+  font-weight: 400;
+  background: rgba(255,255,255,0.07);
+  padding: 2px 7px;
+  border-radius: 5px;
+  color: var(--od-accent, #7c83f5);
+}
+
+.flutter-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.flutter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.flutter-btn:hover { opacity: 0.85; }
+.flutter-btn:active { transform: scale(0.97); }
+
+.flutter-btn-build {
+  background: linear-gradient(135deg, #54d7a0 0%, #3ec8e0 100%);
+  color: #0b1a20;
+}
+
+.flutter-btn-cancel {
+  background: rgba(255,255,255,0.08);
+  color: var(--od-text-secondary, #a3a8bb);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.flutter-btn-open {
+  background: rgba(255,255,255,0.06);
+  color: var(--od-text-primary, #e8eaf0);
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* ── Progress bar ───────────────────────────────────────────────────────── */
+
+.flutter-progress {
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.flutter-progress-bar {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, #54d7a0, #3ec8e0);
+  border-radius: 2px;
+  animation: flutter-slide 1.6s ease-in-out infinite;
+}
+
+@keyframes flutter-slide {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(250%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* ── Build log ──────────────────────────────────────────────────────────── */
+
+.flutter-build-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  font-family: var(--od-font-mono, 'SF Mono', 'Fira Mono', monospace);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #b5bac8;
+  background: #0b0e16;
+}
+
+.flutter-log-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Error banner ───────────────────────────────────────────────────────── */
+
+.flutter-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px;
+  padding: 12px 14px;
+  background: rgba(220, 55, 70, 0.12);
+  border: 1px solid rgba(220, 55, 70, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #f4878e;
+  flex-shrink: 0;
+}
+
+.flutter-error-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Idle placeholder ───────────────────────────────────────────────────── */
+
+.flutter-idle-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 14px;
+  padding: 32px;
+  color: var(--od-text-tertiary, #5a607a);
+}
+
+.flutter-idle-graphic {
+  font-size: 52px;
+  opacity: 0.4;
+  animation: flutter-pulse 3s ease-in-out infinite;
+}
+
+@keyframes flutter-pulse {
+  0%, 100% { transform: scale(1);   opacity: 0.4; }
+  50%       { transform: scale(1.08); opacity: 0.55; }
+}
+
+.flutter-idle-hint {
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 280px;
+  margin: 0;
+}
+
+.flutter-idle-hint strong {
+  color: #54d7a0;
+}
+
+/* ── Device frame + iframe ──────────────────────────────────────────────── */
+
+.flutter-iframe-shell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.flutter-device-frame {
+  position: relative;
+  width: 320px;
+  height: 680px;
+  max-height: 100%;
+  background: #1c1f2d;
+  border-radius: 38px;
+  box-shadow:
+    0 0 0 10px #252836,
+    0 0 0 12px rgba(255,255,255,0.06),
+    0 32px 64px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.flutter-device-notch {
+  flex-shrink: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1c1f2d;
+}
+
+.flutter-device-notch::after {
+  content: '';
+  width: 72px;
+  height: 18px;
+  background: #0b0e16;
+  border-radius: 0 0 12px 12px;
+}
+
+.flutter-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+  border-radius: 0 0 28px 28px;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .flutter-progress-bar { animation: none; width: 100%; }
+  .flutter-idle-graphic  { animation: none; }
+}
