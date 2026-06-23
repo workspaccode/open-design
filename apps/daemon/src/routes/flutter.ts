@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { RouteDeps } from '../server-context.js';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -8,8 +8,8 @@ export interface RegisterFlutterRoutesDeps extends RouteDeps<'http' | 'paths'> {
 
 const PROJECT_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-/** Active flutter build processes, keyed by projectName. */
-const activeBuilds = new Map<string, ChildProcess>();
+/** Active flutter build project names. */
+const activeBuilds = new Set<string>();
 
 function flutterBuildsDir(runtimeDataDir: string): string {
   return path.join(runtimeDataDir, 'flutter-builds');
@@ -30,20 +30,30 @@ function buildOutputDir(runtimeDataDir: string, projectName: string): string {
  */
 export function registerFlutterRoutes(app: Express, ctx: RegisterFlutterRoutesDeps): void {
   const { sendApiError } = ctx.http;
-  const { RUNTIME_DATA_DIR } = ctx.paths;
+  const { RUNTIME_DATA_DIR, PROJECTS_DIR } = ctx.paths;
 
   // ── POST /api/flutter/build ───────────────────────────────────────────────
   app.post('/api/flutter/build', (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const projectPath = body.projectPath as string | undefined;
     const projectName = body.projectName as string | undefined;
+    const projectId = body.projectId as string | undefined;
 
-    if (typeof projectPath !== 'string' || !path.isAbsolute(projectPath)) {
-      return sendApiError(res, 400, 'BAD_REQUEST', 'projectPath must be an absolute path');
+    let resolvedPath: string;
+    if (typeof projectId === 'string' && typeof projectName === 'string' && PROJECT_NAME_RE.test(projectName)) {
+      resolvedPath = path.join(PROJECTS_DIR, projectId, projectName);
+      if (!fs.existsSync(resolvedPath)) {
+        return sendApiError(res, 404, 'NOT_FOUND', `project '${projectName}' not found at resolved path`);
+      }
+    } else if (typeof projectPath === 'string' && path.isAbsolute(projectPath)) {
+      if (!fs.existsSync(projectPath)) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'projectPath does not exist');
+      }
+      resolvedPath = projectPath;
+    } else {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'provide either (projectId + projectName) or (absolute projectPath)');
     }
-    if (!fs.existsSync(projectPath)) {
-      return sendApiError(res, 400, 'BAD_REQUEST', 'projectPath does not exist');
-    }
+
     if (typeof projectName !== 'string' || !PROJECT_NAME_RE.test(projectName)) {
       return sendApiError(res, 400, 'BAD_REQUEST', 'projectName must match /^[a-zA-Z0-9_-]{1,64}$/');
     }
@@ -62,49 +72,58 @@ export function registerFlutterRoutes(app: Express, ctx: RegisterFlutterRoutesDe
       }
     };
 
-    const proc = spawn('flutter', ['build', 'web', '--release'], {
-      cwd: projectPath,
-      shell: false,
+        // Resolve flutter binary from PATH
+    const flutterPath = (() => {
+      for (const p of (process.env.PATH ?? '').split(':')) {
+        const candidate = path.join(p.replace(/\/?$/, ''), 'flutter');
+        try { if (fs.statSync(candidate).isFile()) return candidate; } catch {}
+      }
+      return null;
+    })();
+
+    if (!flutterPath) {
+      sendEvent({ type: 'error', message: 'Flutter not found in PATH', exitCode: -1 });
+      if (!res.writableEnded) res.end();
+      return;
+    }
+
+    sendEvent({ type: 'log', log: `[flutter] building with: ${flutterPath}` });
+    sendEvent({ type: 'log', log: `[flutter] cwd: ${resolvedPath}` });
+
+    execFile(flutterPath, ['build', 'web', '--release'], {
+      cwd: resolvedPath,
+      maxBuffer: 10 * 1024 * 1024,
       env: { ...process.env },
-    });
+    }, (err, stdout, stderr) => {
+      const all = (stdout + '\n' + stderr).trim();
+      const lines = all.split('\n').filter(Boolean);
+      for (const line of lines) sendEvent({ type: 'log', log: line });
 
-    activeBuilds.set(projectName, proc);
-
-    const handleChunk = (chunk: Buffer | string): void => {
-      const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-      for (const line of text.split(/\r?\n/)) {
-        if (line.trim()) sendEvent({ type: 'log', log: line });
-      }
-    };
-
-    proc.stdout.on('data', handleChunk);
-    proc.stderr.on('data', handleChunk);
-
-    proc.on('close', (code) => {
-      activeBuilds.delete(projectName);
-      if (code === 0) {
-        sendEvent({
-          type: 'done',
-          previewUrl: `/api/flutter/preview/${projectName}`,
-        });
+      if (err === null) {
+        // Copy output from <project>/build/web/ to flutter-builds/<projectName>/build/web/
+        const sourceBuild = path.join(resolvedPath, 'build', 'web');
+        const targetBuildDir = buildOutputDir(RUNTIME_DATA_DIR, projectName);
+        try {
+          if (fs.existsSync(targetBuildDir)) {
+            fs.rmSync(targetBuildDir, { recursive: true, force: true });
+          }
+          fs.cpSync(sourceBuild, targetBuildDir, { recursive: true, force: true });
+          sendEvent({ type: 'done', previewUrl: `/api/flutter/preview/${projectName}` });
+        } catch (copyErr) {
+          sendEvent({ type: 'error', message: `Build succeeded but copy failed: ${copyErr}`, exitCode: -1 });
+        }
       } else {
-        sendEvent({ type: 'error', message: 'flutter build web failed', exitCode: code ?? 1 });
+        sendEvent({
+          type: 'error',
+          message: stderr.trim() || stdout.trim() || err.message,
+          exitCode: err.code ?? 1,
+        });
       }
-      res.end();
+      if (!res.writableEnded) res.end();
     });
 
-    proc.on('error', (err) => {
-      activeBuilds.delete(projectName);
-      sendEvent({ type: 'error', message: err.message, exitCode: -1 });
-      res.end();
-    });
-
-    // If the client disconnects mid-build, kill the process.
     req.on('close', () => {
-      if (!res.writableEnded) {
-        proc.kill('SIGTERM');
-        activeBuilds.delete(projectName);
-      }
+      if (!res.writableEnded) res.end();
     });
   });
 
@@ -139,7 +158,7 @@ export function registerFlutterRoutes(app: Express, ctx: RegisterFlutterRoutesDe
     if (!fs.existsSync(indexFile)) {
       return sendApiError(res, 404, 'NOT_FOUND', 'preview not built yet — run POST /api/flutter/build first');
     }
-    res.sendFile(indexFile);
+    res.sendFile(indexFile, { dotfiles: 'allow' });
   });
 
   // ── GET /api/flutter/preview/:projectName/* (static assets) ──────────────
@@ -162,12 +181,12 @@ export function registerFlutterRoutes(app: Express, ctx: RegisterFlutterRoutesDe
       return sendApiError(res, 403, 'FORBIDDEN', 'access denied');
     }
 
-    res.sendFile(filePath, (err) => {
+    res.sendFile(filePath, { dotfiles: 'allow' }, (err) => {
       if (err) {
         // SPA fallback — serve index.html for any missing route
         const indexFile = path.join(buildDir, 'index.html');
         if (fs.existsSync(indexFile)) {
-          res.sendFile(indexFile);
+          res.sendFile(indexFile, { dotfiles: 'allow' });
         } else {
           sendApiError(res, 404, 'NOT_FOUND', 'file not found');
         }
@@ -181,9 +200,7 @@ export function registerFlutterRoutes(app: Express, ctx: RegisterFlutterRoutesDe
     if (!PROJECT_NAME_RE.test(projectName)) {
       return sendApiError(res, 400, 'BAD_REQUEST', 'invalid projectName');
     }
-    const proc = activeBuilds.get(projectName);
-    if (proc) {
-      proc.kill('SIGTERM');
+    if (activeBuilds.has(projectName)) {
       activeBuilds.delete(projectName);
     }
     const projectDir = path.join(flutterBuildsDir(RUNTIME_DATA_DIR), projectName);

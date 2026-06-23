@@ -53,9 +53,48 @@ You MUST:
 2. Write `.dart` files only inside `lib/`
 3. Use GoRouter for navigation
 4. Use Riverpod for state
-5. After writing all files, emit:
-   <artifact identifier="flutter-build-trigger" type="application/json" title="Build Flutter Preview">
-   { "action": "flutter_build", "projectPath": "{cwd}/{projectName}", "projectName": "{projectName}" }
+5. After writing all files, emit ONE html artifact to trigger the build:
+   <artifact identifier="flutter-build-trigger" type="text/html" title="Build Flutter Preview">
+   <!doctype html>
+   <html>
+   <head>
+     <meta charset="utf-8">
+     <title>Building Flutter...</title>
+     <style>body { font-family: sans-serif; padding: 2rem; color: white; background: #0f1117; }</style>
+   </head>
+   <body>
+     <h2>🚀 Building Flutter App...</h2>
+     <p>Please wait while the daemon compiles the web output.</p>
+     <script>
+       // 1. Trigger the backend build
+       fetch('/api/flutter/build', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           projectPath: "{cwd}/{projectName}",
+           projectName: "{projectName}"
+         })
+       }).then(() => {
+         // 2. Poll status until ready
+         const check = setInterval(() => {
+           fetch('/api/flutter/status/{projectName}')
+             .then(r => r.json())
+             .then(data => {
+               if (data.status === 'ready') {
+                 clearInterval(check);
+                 window.location.href = data.previewUrl;
+               } else if (data.status === 'error') {
+                 clearInterval(check);
+                 document.body.innerHTML += '<p style="color:red">Build failed.</p>';
+               }
+             }).catch(e => console.error(e));
+         }, 2000);
+       }).catch(e => {
+         document.body.innerHTML += '<p style="color:red">Failed to start build.</p>';
+       });
+     </script>
+   </body>
+   </html>
    </artifact>
 
 Build a complete Flutter mobile application with **GoRouter** navigation

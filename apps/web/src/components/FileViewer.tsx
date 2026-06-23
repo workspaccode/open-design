@@ -1053,6 +1053,10 @@ export function FileViewer({
   if (rendererMatch?.renderer.id === 'svg') {
     return <SvgViewer projectId={projectId} file={file} />;
   }
+  if (rendererMatch?.renderer.id === 'flutter') {
+    const projectName = file.name.split('/')[0] || '';
+    return <FlutterViewer projectName={projectName} projectId={projectId} file={file} />;
+  }
   if (file.kind === 'image') {
     return <ImageViewer projectId={projectId} file={file} />;
   }
@@ -10235,6 +10239,156 @@ export function SvgViewer({
         )}
       </div>
     </div>
+  );
+}
+
+function FlutterViewer({
+  projectName,
+  projectId,
+  file,
+}: {
+  projectName: string;
+  projectId: string;
+  file: ProjectFile;
+}) {
+  const [ready, setReady] = useState<boolean | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [text, setText] = useState<string | null>(null);
+  const [mode, setMode] = useState<'preview' | 'source'>('preview');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/flutter/status/${encodeURIComponent(projectName)}`)
+      .then((r) => r.json())
+      .then((d: { status: string }) => {
+        if (!cancelled) setReady(d.status === 'ready');
+      })
+      .catch(() => { if (!cancelled) setReady(false); });
+    return () => { cancelled = true; };
+  }, [projectName]);
+
+  useEffect(() => {
+    setText(null);
+    let cancelled = false;
+    fetchProjectFileText(projectId, file.name).then((t) => {
+      if (!cancelled) setText(t ?? '');
+    });
+    return () => { cancelled = true; };
+  }, [projectId, file.name, file.mtime]);
+
+  const startBuild = useCallback(() => {
+    setBuilding(true);
+    setLogs([]);
+    setMode('preview');
+    const abort = new AbortController();
+
+    fetch('/api/flutter/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, projectName }),
+      signal: abort.signal,
+    }).then(async (resp) => {
+      const reader = resp.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const ev = JSON.parse(line.slice(6)) as { type: string; log?: string; previewUrl?: string };
+            if (ev.type === 'log' && ev.log) {
+              setLogs((prev) => [...prev, ev.log!]);
+            }
+            if (ev.type === 'done') {
+              setLogs((prev) => [...prev, '✓ Build complete!']);
+              setReady(true);
+              setBuilding(false);
+            }
+            if (ev.type === 'error') {
+              setLogs((prev) => [...prev, `✗ ${ev.log ?? 'Build failed'}`]);
+              setBuilding(false);
+            }
+          } catch { /* skip malformed lines */ }
+        }
+      }
+    }).catch(() => {
+      setBuilding(false);
+    });
+
+    return () => abort.abort();
+  }, [projectId, projectName]);
+
+  if (ready === null) {
+    return <div className="viewer-empty" />;
+  }
+
+  const tabs = [
+    !building && ready ? ['preview', 'Preview'] as const : null,
+    ['source', 'Source'] as const,
+  ].filter(Boolean) as [string, string][];
+
+  const activeTab = mode === 'preview' && !ready && !building ? 'source' : mode;
+
+  return (
+    <>
+      <div className="viewer-tabs" role="tablist" aria-label="View mode">
+        {!building && (
+          <button
+            type="button"
+            className="viewer-action viewer-tab"
+            onClick={startBuild}
+            style={{ color: 'var(--accent)', fontWeight: 600 }}
+          >
+            ▶ Run
+          </button>
+        )}
+        {tabs.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            className={`viewer-tab ${activeTab === id ? 'active' : ''}`}
+            aria-selected={activeTab === id}
+            onClick={() => setMode(id as 'preview' | 'source')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {building ? (
+        <div className="viewer-body" style={{ padding: '16px', fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre-wrap', overflow: 'auto' }}>
+          <div style={{ marginBottom: 12, color: 'var(--accent)', fontWeight: 600 }}>⏳ Building Flutter web...</div>
+          {logs.map((l, i) => (
+            <div key={i} style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>{l}</div>
+          ))}
+        </div>
+      ) : activeTab === 'source' ? (
+        <pre className="viewer-source"><code>{text ?? ''}</code></pre>
+      ) : ready ? (
+        <div className="viewer-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+          <iframe
+            src={`/api/flutter/preview/${encodeURIComponent(projectName)}`}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="Flutter preview"
+            allow="cross-origin-isolated"
+          />
+        </div>
+      ) : (
+        <div className="viewer-empty">
+          <p style={{ marginBottom: 12 }}>Flutter build not ready.</p>
+          <button type="button" className="viewer-tab" onClick={startBuild} style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 14 }}>
+            ▶ Run Flutter Build
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
